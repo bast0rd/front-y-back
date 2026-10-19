@@ -1,0 +1,112 @@
+name: andesstay-apps
+
+x-common-env: &common-env
+  JAVA_TOOL_OPTIONS: "-Xms64m -Xmx256m"
+
+x-db-env: &db-env
+  <<: *common-env
+  TNS_ADMIN: /wallet
+  DB_PASSWORD: ${DB_PASSWORD:?Define DB_PASSWORD en el archivo .env}
+
+x-rabbit-env: &rabbit-env
+  RABBIT_ADDRESSES: ${RABBIT_ADDRESSES:?Define RABBIT_ADDRESSES en el archivo .env}
+  RABBIT_USER: ${RABBIT_USER:?Define RABBIT_USER en el archivo .env}
+  RABBIT_PASS: ${RABBIT_PASS:?Define RABBIT_PASS en el archivo .env}
+  RABBIT_VHOST: ${RABBIT_VHOST:-/}
+  RABBIT_QUORUM: ${RABBIT_QUORUM:-true}
+
+x-kafka-env: &kafka-env
+  KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}
+  APP_KAFKA_ENABLED: ${APP_KAFKA_ENABLED:-false}
+
+services:
+  catalog:
+    build: ./jars/catalog
+    image: andesstay/catalog
+    restart: unless-stopped
+    environment:
+      <<: *db-env
+    volumes:
+      - ./wallet:/wallet:ro
+
+  reservations:
+    build: ./jars/reservations
+    image: andesstay/reservations
+    restart: unless-stopped
+    depends_on: [catalog]
+    environment:
+      <<: [*db-env, *rabbit-env, *kafka-env]
+      CATALOG_SERVICE_URL: http://catalog:8081
+    volumes:
+      - ./wallet:/wallet:ro
+
+  notify:
+    build: ./jars/notify
+    image: andesstay/notify
+    restart: unless-stopped
+    environment:
+      <<: [*common-env, *rabbit-env]
+
+  audit:
+    build: ./jars/audit
+    image: andesstay/audit
+    restart: unless-stopped
+    environment:
+      <<: [*db-env, *kafka-env]
+    volumes:
+      - ./wallet:/wallet:ro
+
+  report:
+    build: ./jars/report
+    image: andesstay/report
+    restart: unless-stopped
+    environment:
+      <<: [*db-env, *kafka-env]
+    volumes:
+      - ./wallet:/wallet:ro
+
+  bff:
+    build: ./jars/bff
+    image: andesstay/bff
+    restart: unless-stopped
+    depends_on: [catalog, reservations, audit, report]
+    environment:
+      <<: *common-env
+      CATALOG_SERVICE_URL: http://catalog:8081
+      RESERVATIONS_SERVICE_URL: http://reservations:8082
+      AUDIT_SERVICE_URL: http://audit:8085
+      REPORT_SERVICE_URL: http://report:8084
+    ports:
+      - "8080:8080"
+
+  admin-rabbit:
+    build: ./jars/admin-rabbit
+    image: andesstay/admin-rabbit
+    restart: unless-stopped
+    environment:
+      <<: *common-env
+      RABBIT_MGMT_URL: ${RABBIT_MGMT_URL:?Define RABBIT_MGMT_URL en el archivo .env}
+      RABBIT_USER: ${RABBIT_USER:?Define RABBIT_USER en el archivo .env}
+      RABBIT_PASS: ${RABBIT_PASS:?Define RABBIT_PASS en el archivo .env}
+      RABBIT_VHOST: ${RABBIT_VHOST:-/}
+    ports:
+      - "8086:8086"
+
+  admin-kafka:
+    profiles: ["kafka"]
+    build: ./jars/admin-kafka
+    image: andesstay/admin-kafka
+    restart: unless-stopped
+    environment:
+      <<: [*common-env, *kafka-env]
+
+  front:
+    build: ./front
+    image: andesstay/front
+    restart: unless-stopped
+    depends_on: [bff]
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./certs:/etc/nginx/certs:ro

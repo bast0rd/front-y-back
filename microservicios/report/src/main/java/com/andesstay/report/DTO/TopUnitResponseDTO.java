@@ -1,0 +1,13 @@
+package com.andesstay.report.DTO;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+public class TopUnitResponseDTO {
+    private Long unitId;
+    private Long totalReservations;
+}

@@ -1,0 +1,5 @@
+.env
+jars/
+wallet/
+certs/
+front/dist/

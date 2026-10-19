@@ -1,0 +1,17 @@
+# Archivos que nunca deben subirse al repositorio del backend
+
+### Secretos y credenciales (NO subir) ###
+.env
+.env.*
+!.env.example
+wallet/
+*.p12
+*.jks
+*.pem
+cwallet.sso
+ojdbc.properties
+sqlnet.ora
+tnsnames.ora
+
+# Compilados
+target/
